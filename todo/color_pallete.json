@@ -1,0 +1,30 @@
+{
+  "palette_name": "Farm Assistant Palette",
+  "colors": [
+    {
+      "name": "Primary Green (Fresh Crops)",
+      "hex": "#488A0F",
+      "use_case": "Main call-to-action buttons, active navigation states, and branding headers."
+    },
+    {
+      "name": "Deep Green (Foliage/Vigor)",
+      "hex": "#37520B",
+      "use_case": "Primary text labels, active icons, and high-emphasis data metrics."
+    },
+    {
+      "name": "Harvest Gold (Sun/Maturity)",
+      "hex": "#FFE770",
+      "use_case": "Notifications, warning alerts, pending tasks, and highlighted data points."
+    },
+    {
+      "name": "Soil Brown (Earth/Roots)",
+      "hex": "#C7A54E",
+      "use_case": "Secondary buttons, card borders, and warm accent elements."
+    },
+    {
+      "name": "Crisp Off-White",
+      "hex": "#F7F9F6",
+      "use_case": "Main application background, data tables, and card backgrounds to ensure readability."
+    }
+  ]
+}

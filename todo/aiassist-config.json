@@ -1,0 +1,330 @@
+{
+    "appName": "Farm Assistant",
+    "features": [
+        "Garden Management",
+        "Crop Tracking",
+        "Hydroponics Management",
+        "ESPHome Integration",
+        "Sensor Data Visualization, Monitoring, Analysis and Alerts",
+        "Notification System",
+        "Sowing and Harvesting Calendar"
+    ],
+    "description": "Farm Assistant is a comprehensive application designed to help farmers and gardeners manage their crops, monitor sensor data, and optimize their farming practices. With features like garden management, crop tracking, hydroponics management, ESPHome integration, and a notification system, users can efficiently plan and execute their farming activities.",
+    "targetUsers": [
+        "Farmers",
+        "Gardeners",
+        "Agricultural Enthusiasts",
+        "Hydroponics Practitioners",
+        "Small-Scale Farmers"
+    ],
+    "dbSchema": {
+        "database": "farm_assistant",
+        "description": "Entity-based architecture inspired by Home Assistant and optimized for ESPHome integration.",
+        "tables": {
+            "users": {
+            "fields": {
+                "id": "uuid",
+                "name": "string",
+                "email": "string",
+                "password_hash": "string",
+                "role": "string",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            }
+            },
+            "farms": {
+            "fields": {
+                "id": "uuid",
+                "user_id": "uuid",
+                "name": "string",
+                "location": "string",
+                "description": "text",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "user_id": "users.id"
+            }
+            },
+            "zones": {
+            "fields": {
+                "id": "uuid",
+                "farm_id": "uuid",
+                "name": "string",
+                "type": "string",
+                "description": "text",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "farm_id": "farms.id"
+            }
+            },
+            "devices": {
+            "fields": {
+                "id": "uuid",
+                "zone_id": "uuid",
+                "name": "string",
+                "device_type": "string",
+                "manufacturer": "string",
+                "esphome_node": "string",
+                "mqtt_topic": "string",
+                "ip_address": "string",
+                "firmware_version": "string",
+                "status": "string",
+                "last_seen": "timestamp",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "zone_id": "zones.id"
+            }
+            },
+            "entities": {
+            "fields": {
+                "id": "uuid",
+                "device_id": "uuid",
+                "entity_id": "string",
+                "name": "string",
+                "entity_type": "string",
+                "unit": "string",
+                "device_class": "string",
+                "state_class": "string",
+                "icon": "string",
+                "enabled": "boolean",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "device_id": "devices.id"
+            }
+            },
+            "entity_states": {
+            "fields": {
+                "id": "bigint",
+                "entity_id": "uuid",
+                "value": "string",
+                "attributes": "jsonb",
+                "recorded_at": "timestamp"
+            },
+            "relations": {
+                "entity_id": "entities.id"
+            }
+            },
+            "crops": {
+            "fields": {
+                "id": "uuid",
+                "name": "string",
+                "scientific_name": "string",
+                "category": "string",
+                "days_to_harvest": "integer",
+                "optimal_ph_min": "decimal",
+                "optimal_ph_max": "decimal",
+                "optimal_tds_min": "integer",
+                "optimal_tds_max": "integer",
+                "optimal_temp_min": "decimal",
+                "optimal_temp_max": "decimal",
+                "description": "text",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            }
+            },
+            "crop_cycles": {
+            "fields": {
+                "id": "uuid",
+                "crop_id": "uuid",
+                "zone_id": "uuid",
+                "name": "string",
+                "quantity": "integer",
+                "start_date": "date",
+                "expected_harvest_date": "date",
+                "actual_harvest_date": "date",
+                "status": "string",
+                "notes": "text",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "crop_id": "crops.id",
+                "zone_id": "zones.id"
+            }
+            },
+            "hydroponic_systems": {
+            "fields": {
+                "id": "uuid",
+                "zone_id": "uuid",
+                "name": "string",
+                "system_type": "string",
+                "reservoir_volume": "decimal",
+                "water_capacity": "decimal",
+                "notes": "text",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "zone_id": "zones.id"
+            }
+            },
+            "nutrient_solutions": {
+            "fields": {
+                "id": "uuid",
+                "hydroponic_system_id": "uuid",
+                "ph_target": "decimal",
+                "ec_target": "decimal",
+                "water_volume": "decimal",
+                "last_mixed_at": "timestamp",
+                "notes": "text"
+            },
+            "relations": {
+                "hydroponic_system_id": "hydroponic_systems.id"
+            }
+            },
+            "tasks": {
+            "fields": {
+                "id": "uuid",
+                "farm_id": "uuid",
+                "crop_cycle_id": "uuid",
+                "title": "string",
+                "description": "text",
+                "priority": "string",
+                "status": "string",
+                "due_date": "datetime",
+                "completed_at": "datetime",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "farm_id": "farms.id",
+                "crop_cycle_id": "crop_cycles.id"
+            }
+            },
+            "calendar_events": {
+            "fields": {
+                "id": "uuid",
+                "farm_id": "uuid",
+                "crop_cycle_id": "uuid",
+                "event_type": "string",
+                "title": "string",
+                "description": "text",
+                "event_date": "datetime",
+                "created_at": "timestamp"
+            },
+            "relations": {
+                "farm_id": "farms.id",
+                "crop_cycle_id": "crop_cycles.id"
+            }
+            },
+            "alert_rules": {
+            "fields": {
+                "id": "uuid",
+                "entity_id": "uuid",
+                "name": "string",
+                "condition_operator": "string",
+                "threshold_value": "string",
+                "severity": "string",
+                "enabled": "boolean",
+                "notification_channel": "string",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "entity_id": "entities.id"
+            }
+            },
+            "alerts": {
+            "fields": {
+                "id": "uuid",
+                "alert_rule_id": "uuid",
+                "entity_state_id": "bigint",
+                "message": "text",
+                "status": "string",
+                "triggered_at": "timestamp",
+                "resolved_at": "timestamp"
+            },
+            "relations": {
+                "alert_rule_id": "alert_rules.id",
+                "entity_state_id": "entity_states.id"
+            }
+            },
+            "notifications": {
+            "fields": {
+                "id": "uuid",
+                "user_id": "uuid",
+                "title": "string",
+                "message": "text",
+                "channel": "string",
+                "status": "string",
+                "sent_at": "timestamp",
+                "created_at": "timestamp"
+            },
+            "relations": {
+                "user_id": "users.id"
+            }
+            },
+            "automation_rules": {
+            "fields": {
+                "id": "uuid",
+                "farm_id": "uuid",
+                "name": "string",
+                "trigger_entity_id": "uuid",
+                "condition": "jsonb",
+                "action": "jsonb",
+                "enabled": "boolean",
+                "created_at": "timestamp",
+                "updated_at": "timestamp"
+            },
+            "relations": {
+                "farm_id": "farms.id",
+                "trigger_entity_id": "entities.id"
+            }
+            },
+            "ai_observations": {
+            "fields": {
+                "id": "uuid",
+                "farm_id": "uuid",
+                "crop_cycle_id": "uuid",
+                "summary": "text",
+                "recommendation": "text",
+                "confidence": "decimal",
+                "generated_at": "timestamp"
+            },
+            "relations": {
+                "farm_id": "farms.id",
+                "crop_cycle_id": "crop_cycles.id"
+            }
+            }
+        },
+        "entity_types": [
+            "sensor",
+            "binary_sensor",
+            "switch",
+            "number",
+            "button",
+            "select",
+            "light",
+            "fan",
+            "valve",
+            "pump",
+            "automation"
+        ],
+        "recommended_indexes": [
+            "entity_states(entity_id, recorded_at)",
+            "entities(device_id)",
+            "devices(zone_id)",
+            "zones(farm_id)",
+            "crop_cycles(crop_id)",
+            "alerts(status)",
+            "notifications(user_id)"
+        ],
+        "future_extensions": [
+            "weather integration",
+            "market price tracking",
+            "inventory management",
+            "fertilizer management",
+            "livestock management",
+            "computer vision plant health monitoring",
+            "AI crop recommendations",
+            "multi-user farm collaboration"
+        ]
+    }
+}
