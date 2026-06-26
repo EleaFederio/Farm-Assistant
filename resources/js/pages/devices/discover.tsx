@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ArrowLeft,
     Search,
@@ -64,6 +64,8 @@ type ProbeResult = DiscoveredDevice & { already_registered?: boolean };
 
 export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
     const [scanning, setScanning] = useState(false);
+    const [scanProgress, setScanProgress] = useState(0);
+    const [scanStatus, setScanStatus] = useState('');
     const [devices, setDevices] = useState<DiscoveredDevice[]>(discoveredDevices);
     const [currentSubnet, setCurrentSubnet] = useState(subnet);
     const [configureOpen, setConfigureOpen] = useState(false);
@@ -71,32 +73,77 @@ export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
     const [probingIp, setProbingIp] = useState('');
     const [confirming, setConfirming] = useState(false);
 
+    // Simulate scan progress
+    useEffect(() => {
+        if (!scanning) return;
+
+        const progressInterval = setInterval(() => {
+            setScanProgress(prev => {
+                if (prev >= 90) return 90; // Cap at 90% until complete
+                return prev + Math.random() * 15;
+            });
+        }, 500);
+
+        return () => clearInterval(progressInterval);
+    }, [scanning]);
+
+    // Reset progress when scanning stops
+    useEffect(() => {
+        if (!scanning) {
+            setScanProgress(0);
+        }
+    }, [scanning]);
+
     const startScan = () => {
         setScanning(true);
+        setScanStatus('Scanning network...');
+        setScanProgress(0);
         router.get('/devices/discover', { subnet: currentSubnet }, {
             preserveState: true,
             onSuccess: (page: any) => {
                 setDevices(page.props.discoveredDevices as DiscoveredDevice[]);
-                setScanning(false);
+                setScanProgress(100);
+                setScanStatus(`Found ${(page.props.discoveredDevices as DiscoveredDevice[]).length} device(s)`);
+                setTimeout(() => {
+                    setScanning(false);
+                    setScanStatus('');
+                }, 500);
             },
-            onError: () => setScanning(false),
+            onError: () => {
+                setScanStatus('Scan failed');
+                setTimeout(() => {
+                    setScanning(false);
+                    setScanStatus('');
+                }, 1000);
+            },
         });
     };
 
     const probeIp = () => {
         if (!probingIp) return;
         setScanning(true);
+        setScanStatus(`Connecting to ${probingIp}...`);
+        setScanProgress(0);
         router.post('/devices/probe', { ip_address: probingIp }, {
             preserveState: true,
             onSuccess: (page: any) => {
                 const result = { ...page.props.flash?.probeResult, already_registered: false } as ProbeResult;
                 setSelectedDevice(result);
-                setConfigureOpen(true);
-                setScanning(false);
+                setScanProgress(100);
+                setScanStatus('Device found!');
+                setTimeout(() => {
+                    setConfigureOpen(true);
+                    setScanning(false);
+                    setScanStatus('');
+                }, 500);
             },
             onError: () => {
                 alert('No ESPHome device found at this IP address');
-                setScanning(false);
+                setScanStatus('Connection failed');
+                setTimeout(() => {
+                    setScanning(false);
+                    setScanStatus('');
+                }, 1000);
             },
         });
     };
@@ -285,6 +332,44 @@ export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
                         </p>
                     </div>
                 )}
+
+                <Dialog open={scanning} onOpenChange={(open) => {
+                    if (!open) setScanning(false);
+                }}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                Finding ESPHome Devices
+                            </DialogTitle>
+                            <DialogDescription>
+                                {scanStatus || 'Please wait...'}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="font-medium">Progress</span>
+                                    <span className="text-muted-foreground">{Math.round(scanProgress)}%</span>
+                                </div>
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                                    <div
+                                        className="h-full bg-primary transition-all duration-300 ease-out"
+                                        style={{ width: `${scanProgress}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
+                                <p className="flex items-start gap-2">
+                                    <Wifi className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                                    <span>Scanning your network for ESPHome devices. This may take a moment...</span>
+                                </p>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 <Dialog open={configureOpen} onOpenChange={setConfigureOpen}>
                     <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
