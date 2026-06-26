@@ -86,14 +86,24 @@ class DeviceController extends Controller
         return redirect()->route('devices.index');
     }
 
-    public function discover(Request $request, EspHomeService $esphome): Response
+    public function discover(Request $request): Response
+    {
+        $subnet = $request->get('subnet', $this->guessSubnet());
+
+        return Inertia::render('devices/discover', [
+            'discoveredDevices' => [],
+            'subnet' => $subnet,
+        ]);
+    }
+
+    public function scan(Request $request, EspHomeService $esphome): JsonResponse
     {
         $subnet = $request->get('subnet', $this->guessSubnet());
 
         $discovered = $esphome->discover($subnet);
 
-        return Inertia::render('devices/discover', [
-            'discoveredDevices' => $discovered,
+        return response()->json([
+            'discoveredDevices' => $discovered->values()->all(),
             'subnet' => $subnet,
         ]);
     }

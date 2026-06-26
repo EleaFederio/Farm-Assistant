@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ArrowLeft,
     Search,
@@ -9,7 +9,6 @@ import {
     Plus,
     Check,
     Loader2,
-    RefreshCw,
     Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -64,88 +63,79 @@ type ProbeResult = DiscoveredDevice & { already_registered?: boolean };
 
 export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
     const [scanning, setScanning] = useState(false);
-    const [scanProgress, setScanProgress] = useState(0);
-    const [scanStatus, setScanStatus] = useState('');
     const [devices, setDevices] = useState<DiscoveredDevice[]>(discoveredDevices);
     const [currentSubnet, setCurrentSubnet] = useState(subnet);
     const [configureOpen, setConfigureOpen] = useState(false);
     const [selectedDevice, setSelectedDevice] = useState<ProbeResult | null>(null);
     const [probingIp, setProbingIp] = useState('');
     const [confirming, setConfirming] = useState(false);
+    const abortRef = useRef<AbortController | null>(null);
+    const hasAutoScanned = useRef(false);
 
-    // Simulate scan progress
-    useEffect(() => {
-        if (!scanning) return;
-
-        const progressInterval = setInterval(() => {
-            setScanProgress(prev => {
-                if (prev >= 90) return 90; // Cap at 90% until complete
-                return prev + Math.random() * 15;
-            });
-        }, 500);
-
-        return () => clearInterval(progressInterval);
-    }, [scanning]);
-
-    // Reset progress when scanning stops
-    useEffect(() => {
-        if (!scanning) {
-            setScanProgress(0);
-        }
-    }, [scanning]);
-
-    const startScan = () => {
+    const runScan = useCallback((targetSubnet: string) => {
         setScanning(true);
-        setScanStatus('Scanning network...');
-        setScanProgress(0);
-        router.get('/devices/discover', { subnet: currentSubnet }, {
-            preserveState: true,
-            onSuccess: (page: any) => {
-                setDevices(page.props.discoveredDevices as DiscoveredDevice[]);
-                setScanProgress(100);
-                setScanStatus(`Found ${(page.props.discoveredDevices as DiscoveredDevice[]).length} device(s)`);
-                setTimeout(() => {
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        fetch(`/devices/scan?subnet=${encodeURIComponent(targetSubnet)}`, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            signal: controller.signal,
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                setDevices(data.discoveredDevices ?? []);
+                setScanning(false);
+            })
+            .catch((err) => {
+                if (err.name !== 'AbortError') {
                     setScanning(false);
-                    setScanStatus('');
-                }, 500);
-            },
-            onError: () => {
-                setScanStatus('Scan failed');
-                setTimeout(() => {
-                    setScanning(false);
-                    setScanStatus('');
-                }, 1000);
-            },
-        });
+                }
+            });
+    }, []);
+
+    useEffect(() => {
+        if (!hasAutoScanned.current) {
+            hasAutoScanned.current = true;
+            runScan(subnet);
+        }
+    }, [subnet, runScan]);
+
+    const stopScan = () => {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        setScanning(false);
     };
 
     const probeIp = () => {
         if (!probingIp) return;
         setScanning(true);
-        setScanStatus(`Connecting to ${probingIp}...`);
-        setScanProgress(0);
-        router.post('/devices/probe', { ip_address: probingIp }, {
-            preserveState: true,
-            onSuccess: (page: any) => {
-                const result = { ...page.props.flash?.probeResult, already_registered: false } as ProbeResult;
-                setSelectedDevice(result);
-                setScanProgress(100);
-                setScanStatus('Device found!');
-                setTimeout(() => {
-                    setConfigureOpen(true);
-                    setScanning(false);
-                    setScanStatus('');
-                }, 500);
+        fetch('/devices/probe', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-XSRF-TOKEN': decodeURIComponent(
+                    document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? '',
+                ),
             },
-            onError: () => {
+            body: JSON.stringify({ ip_address: probingIp }),
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error('not found');
+                return res.json();
+            })
+            .then((data) => {
+                setSelectedDevice({ ...data, already_registered: false });
+                setScanning(false);
+                setConfigureOpen(true);
+            })
+            .catch(() => {
                 alert('No ESPHome device found at this IP address');
-                setScanStatus('Connection failed');
-                setTimeout(() => {
-                    setScanning(false);
-                    setScanStatus('');
-                }, 1000);
-            },
-        });
+                setScanning(false);
+            });
     };
 
     const openConfigure = (device: DiscoveredDevice) => {
@@ -160,7 +150,7 @@ export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
         if (!selectedDevice) return;
         setConfirming(true);
 
-        const formData = {
+        router.post('/devices/register', {
             ip_address: selectedDevice.ip_address,
             name: selectedDevice.name,
             esphome_node: selectedDevice.esphome_node,
@@ -178,9 +168,7 @@ export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
                 state_class: null,
                 icon: null,
             })),
-        };
-
-        router.post('/devices/register', formData, {
+        }, {
             onSuccess: () => {
                 setConfirming(false);
                 setConfigureOpen(false);
@@ -236,7 +224,7 @@ export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
                                     Scans IPs from {currentSubnet}.1 to {currentSubnet}.254
                                 </p>
                             </div>
-                            <Button onClick={startScan} disabled={scanning}>
+                            <Button onClick={() => runScan(currentSubnet)} disabled={scanning}>
                                 {scanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                                 {scanning ? 'Scanning...' : 'Scan Network'}
                             </Button>
@@ -334,40 +322,61 @@ export default function DeviceDiscover({ discoveredDevices, subnet }: Props) {
                 )}
 
                 <Dialog open={scanning} onOpenChange={(open) => {
-                    if (!open) setScanning(false);
+                    if (!open) stopScan();
                 }}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-sm">
                         <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                                Finding ESPHome Devices
+                            <DialogTitle className="text-center">
+                                Searching for Devices
                             </DialogTitle>
-                            <DialogDescription>
-                                {scanStatus || 'Please wait...'}
+                            <DialogDescription className="text-center">
+                                Scanning {currentSubnet}.1–254 on port 6053
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="font-medium">Progress</span>
-                                    <span className="text-muted-foreground">{Math.round(scanProgress)}%</span>
-                                </div>
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                                    <div
-                                        className="h-full bg-primary transition-all duration-300 ease-out"
-                                        style={{ width: `${scanProgress}%` }}
+                        <div className="flex flex-col items-center gap-6 py-4">
+                            <div className="relative flex items-center justify-center">
+                                <svg className="h-20 w-20 -rotate-90" viewBox="0 0 100 100">
+                                    <circle
+                                        cx="50" cy="50" r="42"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="6"
+                                        className="text-muted"
                                     />
-                                </div>
+                                    <circle
+                                        cx="50" cy="50" r="42"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="6"
+                                        strokeLinecap="round"
+                                        strokeDasharray={264}
+                                        strokeDashoffset={66}
+                                        className="text-primary"
+                                    >
+                                        <animateTransform
+                                            attributeName="transform"
+                                            type="rotate"
+                                            from="0 50 50"
+                                            to="360 50 50"
+                                            dur="1.5s"
+                                            repeatCount="indefinite"
+                                        />
+                                    </circle>
+                                </svg>
+                                <Wifi className="absolute h-8 w-8 text-primary" />
                             </div>
 
-                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
-                                <p className="flex items-start gap-2">
-                                    <Wifi className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                                    <span>Scanning your network for ESPHome devices. This may take a moment...</span>
-                                </p>
-                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                Looking for ESPHome devices on your network...
+                            </p>
                         </div>
+
+                        <DialogFooter className="sm:justify-center">
+                            <Button variant="outline" onClick={stopScan} className="min-w-[120px]">
+                                Cancel
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
 

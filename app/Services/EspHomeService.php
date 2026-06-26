@@ -4,15 +4,13 @@ namespace App\Services;
 
 use App\Models\Device;
 use App\Models\Entity;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 
 class EspHomeService
 {
     private const API_PORT = 6053;
 
-    private int $timeout = 5;
+    private int $timeout = 2;
 
     public function setTimeout(int $seconds): static
     {
@@ -24,80 +22,104 @@ class EspHomeService
     /** @return Collection<int, array<string, mixed>> */
     public function discover(string $subnet = '192.168.1'): Collection
     {
-        $discovered = collect();
+        $ips = $this->buildSubnetIps($subnet);
+        $found = collect();
 
-        for ($host = 1; $host <= 254; $host++) {
-            $ip = "{$subnet}.{$host}";
-
-            $info = $this->probeDevice($ip);
-
-            if ($info !== null) {
-                $discovered->push($info);
+        $sockets = [];
+        foreach ($ips as $ip) {
+            $ctx = stream_context_create(['socket' => ['tcp_nodelay' => true]]);
+            $fp = @stream_socket_client("tcp://{$ip}:".self::API_PORT, $errno, $errstr, 0.5, STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT, $ctx);
+            if ($fp !== false) {
+                $sockets[$ip] = $fp;
             }
         }
 
-        return $discovered;
+        if ($sockets !== []) {
+            $write = $except = null;
+            stream_select($sockets, $write, $except, 1);
+
+            foreach ($sockets as $ip => $fp) {
+                $meta = stream_get_meta_data($fp);
+                if (! $meta['timed_out'] && ! $meta['eof']) {
+                    $found->push([
+                        'ip_address' => $ip,
+                        'name' => $ip,
+                        'esphome_node' => $ip,
+                    ]);
+                }
+                fclose($fp);
+            }
+        }
+
+        return $found;
+    }
+
+    /** @return array<int, string> */
+    private function buildSubnetIps(string $subnet): array
+    {
+        $ips = [];
+        for ($host = 1; $host <= 254; $host++) {
+            $ips[] = "{$subnet}.{$host}";
+        }
+
+        return $ips;
     }
 
     /** @return array<string, mixed>|null */
     public function probeDevice(string $ip): ?array
     {
-        try {
-            $infoResponse = Http::timeout($this->timeout)
-                ->get("http://{$ip}:".self::API_PORT.'/api/info');
+        $fp = @stream_socket_client(
+            "tcp://{$ip}:".self::API_PORT,
+            $errno,
+            $errstr,
+            $this->timeout,
+        );
 
-            if ($infoResponse->failed()) {
-                return null;
-            }
-
-            $info = $infoResponse->json();
-
-            if (empty($info) || empty($info['name'] ?? null)) {
-                return null;
-            }
-
-            $configResponse = Http::timeout($this->timeout)
-                ->get("http://{$ip}:".self::API_PORT.'/api/config');
-
-            $config = $configResponse->successful() ? ($configResponse->json() ?? []) : [];
-
-            $statesResponse = Http::timeout($this->timeout)
-                ->get("http://{$ip}:".self::API_PORT.'/api/states');
-
-            $states = $statesResponse->successful() ? ($statesResponse->json() ?? []) : [];
-
-            $entities = [];
-            foreach ($states as $entityId => $stateData) {
-                $attrs = $stateData['attributes'] ?? [];
-                $entities[] = [
-                    'entity_id' => $entityId,
-                    'name' => $attrs['friendly_name'] ?? $entityId,
-                    'entity_type' => $this->inferEntityType($entityId),
-                    'unit' => $attrs['unit_of_measurement'] ?? null,
-                    'device_class' => $attrs['device_class'] ?? null,
-                    'state_class' => $attrs['state_class'] ?? null,
-                    'icon' => $attrs['icon'] ?? null,
-                    'value' => $stateData['state'] ?? null,
-                ];
-            }
-
-            return [
-                'ip_address' => $ip,
-                'name' => $info['friendly_name'] ?? $info['name'],
-                'esphome_node' => $info['name'],
-                'friendly_name' => $info['friendly_name'] ?? null,
-                'mac_address' => $info['mac'] ?? null,
-                'device_type' => $config['esphome']['platform'] ?? 'ESP32',
-                'manufacturer' => 'ESPHome',
-                'firmware_version' => $info['version'] ?? null,
-                'platform' => $info['platform'] ?? $config['esphome']['board'] ?? null,
-                'entities' => $entities,
-            ];
-        } catch (ConnectionException) {
-            return null;
-        } catch (\Exception) {
+        if ($fp === false) {
             return null;
         }
+        fclose($fp);
+
+        $info = [
+            'ip_address' => $ip,
+            'name' => $ip,
+            'esphome_node' => $ip,
+            'friendly_name' => null,
+            'mac_address' => null,
+            'device_type' => 'ESP32',
+            'manufacturer' => 'ESPHome',
+            'firmware_version' => null,
+            'platform' => null,
+            'entities' => [],
+        ];
+
+        try {
+            $response = @file_get_contents("http://{$ip}:80/json", false, stream_context_create([
+                'http' => ['timeout' => 2],
+            ]));
+
+            if ($response !== false) {
+                $json = json_decode($response, true);
+                if (is_array($json)) {
+                    $info['entities'] = array_map(function (array $entity) {
+                        return [
+                            'entity_id' => $entity['id'] ?? $entity['key'] ?? 'unknown',
+                            'name' => $entity['name'] ?? $entity['id'] ?? 'Unknown',
+                            'entity_type' => $this->inferEntityType($entity['id'] ?? ''),
+                            'unit' => $entity['unit'] ?? null,
+                            'device_class' => null,
+                            'state_class' => null,
+                            'icon' => null,
+                            'value' => $entity['value'] ?? null,
+                        ];
+                    }, $json);
+                }
+            }
+        } catch (\Exception) {
+            // web_server not available, that's fine
+        }
+
+        return $info;
     }
 
     /** @param array<string, mixed> $deviceData */

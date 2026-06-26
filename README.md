@@ -213,11 +213,26 @@ curl -X POST http://localhost:8000/api/esphome/device/1/state \
 ### Adding Devices via UI
 
 1. Navigate to **Devices** in the sidebar
-2. Click **Add Device**
-3. Enter the ESPHome node name (must match the `esphome_node` field)
-4. Set the IP address if using the polling method
+2. Click **Discover ESPHome** to scan your network, or **Manual Add** to enter details by hand
+3. For discovered devices, click **Configure** to review and add the device
+4. Devices and entities are auto-created when data arrives via webhook/MQTT if they don't already exist
 
-Devices and entities are auto-created when data arrives via webhook/MQTT if they don't already exist.
+**Important:** Your ESPHome device **must** have the `api:` component enabled for discovery and probing to work. Farm Assistant connects to the ESPHome Native API on port 6053 to read device info, config, and entity states.
+
+```yaml
+# Minimum ESPHome config for Farm Assistant discovery
+esphome:
+  name: my-device
+  friendly_name: My Device
+
+api:    # <-- Required for discovery/probing
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+```
+
+Without `api:`, the device will not respond on port 6053 and cannot be discovered or probed.
 
 ### Alert Rules
 

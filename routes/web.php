@@ -40,6 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('devices', [DeviceController::class, 'index'])->name('devices.index');
     Route::post('devices', [DeviceController::class, 'store'])->name('devices.store');
     Route::get('devices/discover', [DeviceController::class, 'discover'])->name('devices.discover');
+    Route::get('devices/scan', [DeviceController::class, 'scan'])->name('devices.scan');
     Route::post('devices/probe', [DeviceController::class, 'probe'])->name('devices.probe');
     Route::post('devices/register', [DeviceController::class, 'register'])->name('devices.register');
     Route::get('devices/{device}', [DeviceController::class, 'show'])->name('devices.show');
