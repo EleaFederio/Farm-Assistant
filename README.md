@@ -1,5 +1,7 @@
 # Farm Assistant
 
+![Farm Assistant logo](docs/logo.png)
+
 A comprehensive farm and garden management application built with Laravel, Inertia, and React. Features garden management, crop tracking, hydroponics management, ESPHome integration, sensor data visualization, alerts, and a sowing/harvesting calendar.
 
 ## Features
