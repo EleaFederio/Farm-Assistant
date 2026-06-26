@@ -13,9 +13,14 @@ class EspWebhookController extends Controller
 {
     public function ingest(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'device' => 'required|string',
-            'entities' => 'required|array',
+        $flat = $request->validate([
+            'device' => 'required_without:entities|string',
+            'entities' => 'required_without:device|array',
+            'entity_id' => 'required_with:device|string',
+            'value' => 'required_with:device|string',
+            'unit' => 'nullable|string',
+            'device_class' => 'nullable|string',
+            'entity_type' => 'nullable|string',
             'entities.*.entity_id' => 'required|string',
             'entities.*.value' => 'required|string',
             'entities.*.unit' => 'nullable|string',
@@ -23,14 +28,22 @@ class EspWebhookController extends Controller
             'entities.*.entity_type' => 'nullable|string',
         ]);
 
+        $nodeName = $flat['device'] ?? 'unknown';
+
         $device = Device::firstOrCreate(
-            ['esphome_node' => $validated['device']],
-            ['name' => $validated['device'], 'status' => 'online'],
+            ['esphome_node' => $nodeName],
+            ['name' => $nodeName, 'status' => 'online'],
         );
 
         $device->update(['status' => 'online', 'last_seen' => now()]);
 
-        foreach ($validated['entities'] as $entityData) {
+        if (isset($flat['entity_id']) && isset($flat['value'])) {
+            $entities = [[$flat]];
+        } else {
+            $entities = [$flat['entities']];
+        }
+
+        foreach ($entities[0] as $entityData) {
             $entity = Entity::firstOrCreate(
                 ['device_id' => $device->id, 'entity_id' => $entityData['entity_id']],
                 [
@@ -41,10 +54,10 @@ class EspWebhookController extends Controller
                 ],
             );
 
-            ProcessEntityState::dispatch($entity->id, $entityData['value'], $entityData['attributes'] ?? []);
+            ProcessEntityState::dispatch($entity->id, (string) $entityData['value'], $entityData['attributes'] ?? []);
         }
 
-        return response()->json(['status' => 'ok', 'device' => $device->id, 'entities_processed' => count($validated['entities'])]);
+        return response()->json(['status' => 'ok', 'device' => $device->id, 'entities_processed' => count($entities[0])]);
     }
 
     public function deviceState(Request $request, Device $device): JsonResponse

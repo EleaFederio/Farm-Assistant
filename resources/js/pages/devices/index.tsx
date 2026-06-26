@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { useState } from 'react';
 import { Plus, Wifi, WifiOff, Search, Cpu, MoreVertical, Unplug, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,8 @@ export default function DevicesIndex({ devices, zones }: Props) {
         name: '', device_type: '', manufacturer: '', esphome_node: '',
         mqtt_topic: '', ip_address: '', firmware_version: '', zone_id: '',
     });
+
+    usePoll(10000, { only: ['devices'] });
 
     const createDevice = (e: React.FormEvent) => {
         e.preventDefault();

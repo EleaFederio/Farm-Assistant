@@ -3,6 +3,7 @@
 use App\Models\TeamInvitation;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('devices:check')->everyMinute()->withoutOverlapping();
 Schedule::call(function () {
     TeamInvitation::query()
         ->whereNotNull('expires_at')

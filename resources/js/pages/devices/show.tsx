@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { useState } from 'react';
 import { ArrowLeft, Wifi, WifiOff, Trash2, Unplug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,8 @@ type Props = {
 export default function DevicesShow({ device }: Props) {
     const [disconnectOpen, setDisconnectOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
+
+    usePoll(5000, { only: ['device'] });
 
     const handleDisconnect = () => {
         router.post(`/devices/${device.id}/disconnect`, {}, {

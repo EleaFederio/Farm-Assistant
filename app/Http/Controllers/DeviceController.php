@@ -20,6 +20,12 @@ class DeviceController extends Controller
             ->latest()
             ->get();
 
+        if (! request()->hasHeader('X-Inertia-Partial-Data')) {
+            foreach ($devices as $device) {
+                $this->refreshDeviceStatus($device);
+            }
+        }
+
         return Inertia::render('devices/index', [
             'devices' => $devices,
             'zones' => Zone::with('farm')->get(),
@@ -48,6 +54,9 @@ class DeviceController extends Controller
 
     public function show(Device $device): Response
     {
+        if (! request()->hasHeader('X-Inertia-Partial-Data')) {
+            $this->refreshDeviceStatus($device);
+        }
         $device->load(['zone.farm', 'entities.latestState']);
 
         return Inertia::render('devices/show', [
@@ -187,6 +196,37 @@ class DeviceController extends Controller
         }
 
         return redirect()->route('devices.show', $device);
+    }
+
+    private function refreshDeviceStatus(Device $device): void
+    {
+        if ($device->ip_address === null || $device->status === 'disconnected') {
+            return;
+        }
+
+        $lastSeenAt = $device->last_seen !== null
+            ? \Carbon\Carbon::parse($device->last_seen)
+            : null;
+
+        if ($lastSeenAt !== null && $lastSeenAt->diffInSeconds(now()) < 60) {
+            return;
+        }
+
+        $fp = @stream_socket_client(
+            'tcp://'.$device->ip_address.':6053',
+            $errno,
+            $errstr,
+            1,
+        );
+
+        if ($fp !== false) {
+            fclose($fp);
+            $device->update(['status' => 'online', 'last_seen' => now()]);
+        } else {
+            if ($lastSeenAt === null || $lastSeenAt->lt(now()->subMinutes(3))) {
+                $device->update(['status' => 'offline']);
+            }
+        }
     }
 
     private function guessSubnet(): string

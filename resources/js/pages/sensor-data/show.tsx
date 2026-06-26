@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePoll } from '@inertiajs/react';
 import { ArrowLeft, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -69,6 +69,8 @@ function SimpleChart({ states, unit }: { states: Props['states']; unit: string |
 }
 
 export default function SensorDataShow({ entity, states }: Props) {
+    usePoll(5000, { only: ['states'] });
+
     const latest = states[states.length - 1];
     const numeric = states.map(s => parseFloat(s.value)).filter(v => !isNaN(v));
 

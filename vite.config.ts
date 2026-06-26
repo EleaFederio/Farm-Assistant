@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => {
     return {
     server: {
         host,
-        allowedHosts: host !== 'localhost' ? [host, 'localhost'] : true,
+        allowedHosts: true,
+        cors: true,
     },
     plugins: [
         laravel({

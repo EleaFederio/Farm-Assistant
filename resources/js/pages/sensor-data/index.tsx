@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePoll } from '@inertiajs/react';
 import { LineChart, Thermometer, Droplets, Sun } from 'lucide-react';
 import {
     Card,
@@ -32,6 +32,8 @@ type Props = {
 };
 
 export default function SensorDataIndex({ entities }: Props) {
+    usePoll(5000, { only: ['entities'] });
+
     const grouped = entities.reduce((acc: Record<string, any[]>, e) => {
         const dc = e.device_class ?? 'other';
         if (!acc[dc]) acc[dc] = [];
