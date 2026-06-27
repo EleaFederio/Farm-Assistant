@@ -6,6 +6,7 @@ use App\Http\Controllers\CropController;
 use App\Http\Controllers\CropCycleController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\EntityCommandController;
 use App\Http\Controllers\FarmController;
 use App\Http\Controllers\HydroponicController;
 use App\Http\Controllers\NotificationController;
@@ -24,6 +25,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('farms/{farm}', [FarmController::class, 'show'])->name('farms.show');
     Route::put('farms/{farm}', [FarmController::class, 'update'])->name('farms.update');
     Route::delete('farms/{farm}', [FarmController::class, 'destroy'])->name('farms.destroy');
+    Route::post('farms/{farm}/zones', [FarmController::class, 'storeZone'])->name('farms.zones.store');
+    Route::put('farms/{farm}/zones/{zone}', [FarmController::class, 'updateZone'])->name('farms.zones.update');
+    Route::delete('farms/{farm}/zones/{zone}', [FarmController::class, 'destroyZone'])->name('farms.zones.destroy');
 
     Route::get('crops', [CropController::class, 'index'])->name('crops.index');
     Route::post('crops', [CropController::class, 'store'])->name('crops.store');
@@ -51,6 +55,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sensor-data', [SensorDataController::class, 'index'])->name('sensor-data.index');
     Route::get('sensor-data/{entity}', [SensorDataController::class, 'show'])->name('sensor-data.show');
     Route::get('sensor-data/{entity}/history', [SensorDataController::class, 'history'])->name('sensor-data.history');
+
+    Route::post('api/entities/{entity}/command', [EntityCommandController::class, 'command'])->name('entities.command');
 
     Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::post('tasks', [TaskController::class, 'store'])->name('tasks.store');

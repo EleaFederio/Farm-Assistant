@@ -12,6 +12,7 @@ class Zone extends Model
         'farm_id',
         'name',
         'type',
+        'capacity',
         'description',
     ];
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Farm;
+use App\Models\Zone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -37,7 +38,7 @@ class FarmController extends Controller
 
     public function show(Farm $farm): Response
     {
-        $farm->load(['zones', 'zones.devices', 'zones.cropCycles.crop']);
+        $farm->load(['zones.devices', 'zones.cropCycles.crop']);
 
         return Inertia::render('farms/show', [
             'farm' => $farm,
@@ -62,5 +63,40 @@ class FarmController extends Controller
         $farm->delete();
 
         return redirect()->route('farms.index');
+    }
+
+    public function storeZone(Request $request, Farm $farm): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'nullable|string|max:255',
+            'capacity' => 'nullable|integer|min:1',
+            'description' => 'nullable|string',
+        ]);
+
+        $farm->zones()->create($validated);
+
+        return redirect()->route('farms.show', $farm);
+    }
+
+    public function updateZone(Request $request, Farm $farm, Zone $zone): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'nullable|string|max:255',
+            'capacity' => 'nullable|integer|min:1',
+            'description' => 'nullable|string',
+        ]);
+
+        $zone->update($validated);
+
+        return redirect()->route('farms.show', $farm);
+    }
+
+    public function destroyZone(Farm $farm, Zone $zone): RedirectResponse
+    {
+        $zone->delete();
+
+        return redirect()->route('farms.show', $farm);
     }
 }

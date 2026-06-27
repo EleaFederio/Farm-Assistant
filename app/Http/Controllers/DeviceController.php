@@ -6,6 +6,7 @@ use App\Models\Device;
 use App\Models\Entity;
 use App\Models\Zone;
 use App\Services\EspHomeService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,10 +21,8 @@ class DeviceController extends Controller
             ->latest()
             ->get();
 
-        if (! request()->hasHeader('X-Inertia-Partial-Data')) {
-            foreach ($devices as $device) {
-                $this->refreshDeviceStatus($device);
-            }
+        foreach ($devices as $device) {
+            $this->refreshDeviceStatus($device);
         }
 
         return Inertia::render('devices/index', [
@@ -54,9 +53,7 @@ class DeviceController extends Controller
 
     public function show(Device $device): Response
     {
-        if (! request()->hasHeader('X-Inertia-Partial-Data')) {
-            $this->refreshDeviceStatus($device);
-        }
+        $this->refreshDeviceStatus($device);
         $device->load(['zone.farm', 'entities.latestState']);
 
         return Inertia::render('devices/show', [
@@ -173,6 +170,8 @@ class DeviceController extends Controller
         if ($device->wasRecentlyCreated === false) {
             $device->update([
                 'ip_address' => $validated['ip_address'],
+                'name' => $validated['name'],
+                'friendly_name' => $validated['friendly_name'] ?? $device->friendly_name,
                 'status' => 'online',
                 'last_seen' => now(),
                 'zone_id' => $validated['zone_id'] ?? $device->zone_id,
@@ -200,30 +199,38 @@ class DeviceController extends Controller
 
     private function refreshDeviceStatus(Device $device): void
     {
-        if ($device->ip_address === null || $device->status === 'disconnected') {
+        if ($device->status === 'disconnected') {
             return;
         }
 
         $lastSeenAt = $device->last_seen !== null
-            ? \Carbon\Carbon::parse($device->last_seen)
+            ? Carbon::parse($device->last_seen)
             : null;
 
         if ($lastSeenAt !== null && $lastSeenAt->diffInSeconds(now()) < 60) {
             return;
         }
 
-        $fp = @stream_socket_client(
-            'tcp://'.$device->ip_address.':6053',
-            $errno,
-            $errstr,
-            1,
-        );
+        if ($device->ip_address !== null) {
+            $fp = @stream_socket_client(
+                'tcp://'.$device->ip_address.':6053',
+                $errno,
+                $errstr,
+                1,
+            );
 
-        if ($fp !== false) {
-            fclose($fp);
-            $device->update(['status' => 'online', 'last_seen' => now()]);
-        } else {
-            if ($lastSeenAt === null || $lastSeenAt->lt(now()->subMinutes(3))) {
+            if ($fp !== false) {
+                fclose($fp);
+                if ($device->status !== 'online') {
+                    $device->update(['status' => 'online', 'last_seen' => now()]);
+                }
+
+                return;
+            }
+        }
+
+        if ($lastSeenAt === null || $lastSeenAt->lt(now()->subMinutes(3))) {
+            if ($device->status !== 'offline') {
                 $device->update(['status' => 'offline']);
             }
         }

@@ -18,12 +18,14 @@ class Entity extends Model
         'device_class',
         'state_class',
         'icon',
+        'attributes',
         'enabled',
     ];
 
     protected function casts(): array
     {
         return [
+            'attributes' => 'json',
             'enabled' => 'boolean',
         ];
     }

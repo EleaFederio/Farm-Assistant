@@ -14,7 +14,6 @@ class SensorDataController extends Controller
     public function index(): Response
     {
         $entities = Entity::with(['device.zone.farm', 'latestState'])
-            ->where('entity_type', 'sensor')
             ->where('enabled', true)
             ->get();
 

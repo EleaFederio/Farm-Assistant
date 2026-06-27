@@ -217,7 +217,7 @@ curl -X POST http://localhost:8000/api/esphome/device/1/state \
 3. For discovered devices, click **Configure** to review and add the device
 4. Devices and entities are auto-created when data arrives via webhook/MQTT if they don't already exist
 
-**Important:** Your ESPHome device **must** have the `api:` component enabled for discovery and probing to work. Farm Assistant connects to the ESPHome Native API on port 6053 to read device info, config, and entity states.
+**Important:** Your ESPHome device **must** have the `api:` component enabled for discovery and probing to work. Farm Assistant connects to the ESPHome Native API on port 6053 to read device info, config, and entity states. Additionally, the `web_server:` component must be enabled (on port 80) for entity discovery via the SSE `/events` endpoint.
 
 ```yaml
 # Minimum ESPHome config for Farm Assistant discovery
@@ -225,14 +225,17 @@ esphome:
   name: my-device
   friendly_name: My Device
 
-api:    # <-- Required for discovery/probing
+api:        # <-- Required for discovery/probing (port 6053)
+web_server: # <-- Required for entity discovery via SSE (port 80)
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 ```
 
-Without `api:`, the device will not respond on port 6053 and cannot be discovered or probed.
+Without `api:` and `web_server:`, the device will not respond and cannot be discovered or probed.
+
+**Note:** The `esphome_node` identifier is automatically normalized to lowercase (e.g., `MyDevice` becomes `mydevice`). This ensures consistent matching regardless of how the device was first registered (via webhook, discovery, or manual entry).
 
 ### Alert Rules
 

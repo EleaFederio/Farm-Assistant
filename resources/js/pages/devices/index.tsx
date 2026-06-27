@@ -1,6 +1,6 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { useState } from 'react';
-import { Plus, Wifi, WifiOff, Search, Cpu, MoreVertical, Unplug, Trash2 } from 'lucide-react';
+import { Plus, Wifi, WifiOff, Search, Cpu, MoreVertical, Unplug, Trash2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -139,40 +139,48 @@ export default function DevicesIndex({ devices, zones }: Props) {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {devices.map(device => (
-                        <div key={device.id} className="group relative">
-                            <Link href={`/devices/${device.id}`}>
-                                <Card className="cursor-pointer transition-colors hover:bg-accent/50">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center justify-between text-lg">
-                                            <span className="flex items-center gap-2">
-                                                {device.status === 'online' ? <Wifi className="h-4 w-4 text-green-500" /> : <WifiOff className="h-4 w-4 text-red-500" />}
-                                                <div className="truncate">
-                                                    {device.friendly_name ?? device.name}
-                                                    {device.esphome_node && <span className="ml-1 text-xs text-muted-foreground">({device.esphome_node})</span>}
-                                                </div>
-                                            </span>
-                                            <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>{device.status}</Badge>
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                                            <span>Type: {device.device_type ?? 'N/A'}</span>
-                                            <span>|</span>
-                                            <span>Entities: {device.entities_count}</span>
-                                        </div>
-                                        {device.ip_address && (
-                                            <p className="text-xs text-muted-foreground">IP: {device.ip_address}</p>
-                                        )}
-                                        {device.firmware_version && (
-                                            <p className="text-xs text-muted-foreground">FW: {device.firmware_version}</p>
-                                        )}
-                                        {device.zone && (
-                                            <p className="text-xs text-muted-foreground">{device.zone.name} - {device.zone.farm.name}</p>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </Link>
+                    {devices.map(device => {
+                        const isOffline = device.status === 'offline' || device.status === 'disconnected';
+                        return (
+                            <div key={device.id} className="group relative">
+                                <Link href={`/devices/${device.id}`}>
+                                    <Card className={`cursor-pointer transition-colors hover:bg-accent/50 ${isOffline ? 'opacity-60' : ''}`}>
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center justify-between text-lg">
+                                                <span className="flex items-center gap-2">
+                                                    {device.status === 'online' ? <Wifi className="h-4 w-4 text-green-500" /> : <WifiOff className="h-4 w-4 text-red-500" />}
+                                                    <div className="truncate">
+                                                        {device.friendly_name ?? device.name}
+                                                        {device.esphome_node && <span className="ml-1 text-xs text-muted-foreground">({device.esphome_node})</span>}
+                                                    </div>
+                                                </span>
+                                                <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>{device.status}</Badge>
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                                                <span>Type: {device.device_type ?? 'N/A'}</span>
+                                                <span>|</span>
+                                                <span>Entities: {device.entities_count}</span>
+                                            </div>
+                                            {device.ip_address && (
+                                                <p className="text-xs text-muted-foreground">IP: {device.ip_address}</p>
+                                            )}
+                                            {device.firmware_version && (
+                                                <p className="text-xs text-muted-foreground">FW: {device.firmware_version}</p>
+                                            )}
+                                            {device.zone && (
+                                                <p className="text-xs text-muted-foreground">{device.zone.name} - {device.zone.farm.name}</p>
+                                            )}
+                                            {isOffline && device.last_seen && (
+                                                <p className="mt-1 flex items-center gap-1 text-xs text-orange-500">
+                                                    <Clock className="h-3 w-3" />
+                                                    Last seen {formatLastSeen(device.last_seen)}
+                                                </p>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </Link>
                             <div className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -193,7 +201,8 @@ export default function DevicesIndex({ devices, zones }: Props) {
                                 </DropdownMenu>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {devices.length === 0 && (
@@ -235,4 +244,14 @@ export default function DevicesIndex({ devices, zones }: Props) {
             </Dialog>
         </>
     );
+}
+
+function formatLastSeen(lastSeen: string): string {
+    const diff = Date.now() - new Date(lastSeen).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
 }

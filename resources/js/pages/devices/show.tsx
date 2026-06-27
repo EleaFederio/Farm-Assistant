@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import Heading from '@/components/heading';
+import EntityWidget from '@/components/entity-widget';
 
 type Props = {
     device: {
@@ -38,8 +39,10 @@ type Props = {
             name: string;
             entity_type: string;
             unit: string | null;
+            device_class: string | null;
             enabled: boolean;
-            latest_state: { value: string; recorded_at: string } | null;
+            attributes: Record<string, unknown> | null;
+            latest_state: { value: string; recorded_at: string; attributes: Record<string, unknown> | null } | null;
         }>;
     };
 };
@@ -100,23 +103,9 @@ export default function DevicesShow({ device }: Props) {
                     <h3 className="mb-3 text-lg font-semibold">Entities</h3>
                     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                         {device.entities.map(entity => (
-                            <Card key={entity.id} className={entity.enabled ? '' : 'opacity-50'}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center justify-between text-sm">
-                                        {entity.name}
-                                        <Badge variant="outline" className="text-xs">{entity.entity_type}</Badge>
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-xs text-muted-foreground">{entity.entity_id}</p>
-                                    {entity.latest_state && (
-                                        <p className="mt-1 text-lg font-semibold">
-                                            {entity.latest_state.value}
-                                            {entity.unit && <span className="text-sm text-muted-foreground"> {entity.unit}</span>}
-                                        </p>
-                                    )}
-                                </CardContent>
-                            </Card>
+                            <div key={entity.id} className={entity.enabled ? '' : 'opacity-50'}>
+                                <EntityWidget entity={entity} />
+                            </div>
                         ))}
                     </div>
                 </div>

@@ -12,6 +12,7 @@ import {
     LineChart,
     BookOpen,
     FolderGit2,
+    Radio,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -56,14 +57,21 @@ export function AppSidebar() {
             icon: ClipboardList,
         },
         {
-            title: 'Devices',
+            title: 'IoT',
             href: '/devices',
-            icon: Cpu,
-        },
-        {
-            title: 'Sensor Data',
-            href: '/sensor-data',
-            icon: LineChart,
+            icon: Radio,
+            items: [
+                {
+                    title: 'Devices',
+                    href: '/devices',
+                    icon: Cpu,
+                },
+                {
+                    title: 'Sensor Data',
+                    href: '/sensor-data',
+                    icon: LineChart,
+                },
+            ],
         },
         {
             title: 'Hydroponics',
