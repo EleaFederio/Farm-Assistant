@@ -14,7 +14,17 @@ class Zone extends Model
         'type',
         'capacity',
         'description',
+        'hidden_entity_ids',
+        'graph_entity_ids',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'hidden_entity_ids' => 'array',
+            'graph_entity_ids' => 'array',
+        ];
+    }
 
     /** @return BelongsTo<Farm, $this> */
     public function farm(): BelongsTo

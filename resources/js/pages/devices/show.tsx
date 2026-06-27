@@ -1,6 +1,6 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { useState } from 'react';
-import { ArrowLeft, Wifi, WifiOff, Trash2, Unplug } from 'lucide-react';
+import { ArrowLeft, Wifi, WifiOff, Trash2, Unplug, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -16,9 +16,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import Heading from '@/components/heading';
 import EntityWidget from '@/components/entity-widget';
+
+type Zone = { id: number; name: string; farm: { name: string } };
 
 type Props = {
     device: {
@@ -32,7 +41,8 @@ type Props = {
         firmware_version: string | null;
         status: string;
         last_seen: string | null;
-        zone: { id: number; name: string; farm: { name: string } } | null;
+        zone_id: number | null;
+        zone: Zone | null;
         entities: Array<{
             id: number;
             entity_id: string;
@@ -45,13 +55,25 @@ type Props = {
             latest_state: { value: string; recorded_at: string; attributes: Record<string, unknown> | null } | null;
         }>;
     };
+    zones: Zone[];
 };
 
-export default function DevicesShow({ device }: Props) {
+export default function DevicesShow({ device, zones }: Props) {
     const [disconnectOpen, setDisconnectOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
 
     usePoll(5000, { only: ['device'] });
+
+    const handleZoneChange = (zoneId: string) => {
+        router.put(`/devices/${device.id}`, {
+            name: device.name,
+            zone_id: zoneId === 'none' ? null : Number(zoneId),
+            status: device.status,
+        }, {
+            preserveScroll: true,
+            only: ['device'],
+        });
+    };
 
     const handleDisconnect = () => {
         router.post(`/devices/${device.id}/disconnect`, {}, {
@@ -92,11 +114,29 @@ export default function DevicesShow({ device }: Props) {
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-5">
                     <Card><CardHeader><CardTitle className="text-sm">Type</CardTitle></CardHeader><CardContent>{device.device_type ?? 'N/A'}</CardContent></Card>
                     <Card><CardHeader><CardTitle className="text-sm">Manufacturer</CardTitle></CardHeader><CardContent>{device.manufacturer ?? 'N/A'}</CardContent></Card>
                     <Card><CardHeader><CardTitle className="text-sm">IP Address</CardTitle></CardHeader><CardContent>{device.ip_address ?? 'N/A'}</CardContent></Card>
                     <Card><CardHeader><CardTitle className="text-sm">Firmware</CardTitle></CardHeader><CardContent>{device.firmware_version ?? 'N/A'}</CardContent></Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-sm flex items-center gap-1"><MapPin className="h-3 w-3" /> Zone</CardTitle></CardHeader>
+                        <CardContent>
+                            <Select value={device.zone_id?.toString() ?? 'none'} onValueChange={handleZoneChange}>
+                                <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="No zone" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">No zone</SelectItem>
+                                    {zones.map(zone => (
+                                        <SelectItem key={zone.id} value={zone.id.toString()}>
+                                            {zone.name} — {zone.farm.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <div>

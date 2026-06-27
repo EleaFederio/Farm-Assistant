@@ -1,13 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { ArrowLeft, Plus, Pencil, Trash2, MapPin, Cpu, Sprout } from 'lucide-react';
+import { toast } from 'sonner';
+import { ArrowLeft, Plus, Pencil, Trash2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -20,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Heading from '@/components/heading';
+import ZoneCard from '@/components/zone-card';
 
 type Zone = {
     id: number;
@@ -27,7 +24,21 @@ type Zone = {
     type: string | null;
     capacity: number | null;
     description: string | null;
-    devices: Array<{ id: number }>;
+    hidden_entity_ids: number[] | null;
+    graph_entity_ids: number[] | null;
+    devices: Array<{
+        id: number;
+        name: string;
+        status: string;
+        entities: Array<{
+            id: number;
+            entity_id: string;
+            name: string;
+            entity_type: string;
+            unit: string | null;
+            latest_state: { value: string; recorded_at: string } | null;
+        }>;
+    }>;
     crop_cycles: Array<{ id: number }>;
 };
 
@@ -39,13 +50,21 @@ type Props = {
         description: string | null;
         zones: Zone[];
     };
+    devices: Array<{
+        id: number;
+        name: string;
+        status: string;
+        zone_id: number | null;
+    }>;
 };
 
-export default function FarmsShow({ farm }: Props) {
+export default function FarmsShow({ farm, devices }: Props) {
     const [editFarmOpen, setEditFarmOpen] = useState(false);
     const [addZoneOpen, setAddZoneOpen] = useState(false);
     const [editZone, setEditZone] = useState<Zone | null>(null);
     const [deleteZone, setDeleteZone] = useState<Zone | null>(null);
+    const [hiddenEntityIds, setHiddenEntityIds] = useState<number[]>([]);
+    const [graphEntityIds, setGraphEntityIds] = useState<number[]>([]);
 
     const [farmForm, setFarmForm] = useState({
         name: farm.name,
@@ -105,7 +124,51 @@ export default function FarmsShow({ farm }: Props) {
             capacity: zone.capacity?.toString() ?? '',
             description: zone.description ?? '',
         });
+        setHiddenEntityIds(zone.hidden_entity_ids ?? []);
+        setGraphEntityIds(zone.graph_entity_ids ?? []);
         setEditZone(zone);
+    };
+
+    const saveEntityPrefs = async (newHidden: number[], newGraph: number[]) => {
+        if (!editZone) return;
+        try {
+            const res = await fetch(`/farms/${farm.id}/zones/${editZone.id}/entity-prefs`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''),
+                },
+                body: JSON.stringify({
+                    hidden_entity_ids: newHidden,
+                    graph_entity_ids: newGraph,
+                }),
+            });
+            if (res.ok) {
+                toast.success('Zone preferences updated');
+                router.reload({ only: ['farm'] });
+            } else {
+                toast.error('Failed to update preferences');
+            }
+        } catch {
+            toast.error('Failed to update preferences');
+        }
+    };
+
+    const toggleHideEntity = (entityId: number) => {
+        const next = hiddenEntityIds.includes(entityId)
+            ? hiddenEntityIds.filter(id => id !== entityId)
+            : [...hiddenEntityIds, entityId];
+        setHiddenEntityIds(next);
+        saveEntityPrefs(next, graphEntityIds);
+    };
+
+    const toggleGraphEntity = (entityId: number) => {
+        const next = graphEntityIds.includes(entityId)
+            ? graphEntityIds.filter(id => id !== entityId)
+            : [...graphEntityIds, entityId];
+        setGraphEntityIds(next);
+        saveEntityPrefs(hiddenEntityIds, next);
     };
 
     return (
@@ -142,56 +205,13 @@ export default function FarmsShow({ farm }: Props) {
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {farm.zones.map(zone => (
-                        <Card key={zone.id}>
-                            <CardHeader>
-                                <CardTitle className="flex items-center justify-between text-lg">
-                                    <span>{zone.name}</span>
-                                    <div className="flex gap-1">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditZone(zone)}>
-                                            <Pencil className="h-3 w-3" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteZone(zone)}>
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                    </div>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-1 text-sm text-muted-foreground">
-                                    <p>Type: {zone.type ?? 'General'}</p>
-                                    <p className="flex items-center gap-1">
-                                        <Cpu className="h-3 w-3" /> Devices: {zone.devices?.length ?? 0}
-                                        {zone.capacity !== null && <span className="text-xs">/ {zone.capacity} max</span>}
-                                    </p>
-                                    <p className="flex items-center gap-1">
-                                        <Sprout className="h-3 w-3" /> Crop Cycles: {zone.crop_cycles?.length ?? 0}
-                                    </p>
-                                    {zone.capacity !== null && (
-                                        <div className="mt-2">
-                                            <div className="flex items-center justify-between text-xs">
-                                                <span>Capacity</span>
-                                                <span>{(zone.devices?.length ?? 0)} / {zone.capacity}</span>
-                                            </div>
-                                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background/50">
-                                                <div
-                                                    className="h-full rounded-full bg-primary transition-all"
-                                                    style={{ width: `${Math.min(100, ((zone.devices?.length ?? 0) / zone.capacity) * 100)}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {zone.description && (
-                                        <p className="mt-2 text-xs">{zone.description}</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <ZoneCard key={zone.id} zone={zone} farmId={farm.id} onEdit={openEditZone} />
                     ))}
                 </div>
 
                 {farm.zones.length === 0 && (
                     <p className="py-8 text-center text-muted-foreground">
-                        No zones yet. Add a zone to organize your devices and crop cycles.
+                        No zones yet. Add a zone to organize your devices and plants.
                     </p>
                 )}
             </div>
@@ -243,7 +263,7 @@ export default function FarmsShow({ farm }: Props) {
                                 <Input id="zone-type" value={zoneForm.type} onChange={e => setZoneForm({ ...zoneForm, type: e.target.value })} placeholder="greenhouse, outdoor, hydroponic, nursery" />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="zone-capacity">Capacity (max devices)</Label>
+                                <Label htmlFor="zone-capacity">Capacity (max plants)</Label>
                                 <Input id="zone-capacity" type="number" min="1" value={zoneForm.capacity} onChange={e => setZoneForm({ ...zoneForm, capacity: e.target.value })} placeholder="Leave empty for unlimited" />
                             </div>
                             <div className="grid gap-2">
@@ -260,11 +280,11 @@ export default function FarmsShow({ farm }: Props) {
 
             {/* Edit Zone Dialog */}
             <Dialog open={editZone !== null} onOpenChange={() => setEditZone(null)}>
-                <DialogContent>
+                <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                     <form onSubmit={updateZone}>
                         <DialogHeader>
                             <DialogTitle>Edit Zone</DialogTitle>
-                            <DialogDescription>Update zone details</DialogDescription>
+                            <DialogDescription>Update zone details and manage devices</DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                             <div className="grid gap-2">
@@ -276,15 +296,139 @@ export default function FarmsShow({ farm }: Props) {
                                 <Input id="edit-zone-type" value={zoneForm.type} onChange={e => setZoneForm({ ...zoneForm, type: e.target.value })} placeholder="greenhouse, outdoor, hydroponic, nursery" />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="edit-zone-capacity">Capacity (max devices)</Label>
+                                <Label htmlFor="edit-zone-capacity">Capacity (max plants)</Label>
                                 <Input id="edit-zone-capacity" type="number" min="1" value={zoneForm.capacity} onChange={e => setZoneForm({ ...zoneForm, capacity: e.target.value })} placeholder="Leave empty for unlimited" />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="edit-zone-description">Description</Label>
                                 <Textarea id="edit-zone-description" value={zoneForm.description} onChange={e => setZoneForm({ ...zoneForm, description: e.target.value })} />
                             </div>
+
+                            {editZone && (
+                                <div className="border-t pt-4">
+                                    <Label className="mb-2 block">Devices in this zone</Label>
+                                    {editZone.devices && editZone.devices.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {editZone.devices.map(device => (
+                                                <div key={device.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`h-2 w-2 rounded-full ${device.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                                        <span className="text-sm">{device.name}</span>
+                                                        <span className="text-xs text-muted-foreground">{device.status}</span>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-destructive h-7"
+                                                        onClick={() => router.delete(`/farms/${farm.id}/zones/${editZone.id}/devices/${device.id}`, {
+                                                            preserveScroll: true,
+                                                            onFinish: () => setEditZone(null),
+                                                        })}
+                                                    >
+                                                        Disconnect
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-muted-foreground">No devices assigned</p>
+                                    )}
+
+                                    {(() => {
+                                        const available = devices.filter(d => d.zone_id !== editZone.id);
+                                        if (available.length === 0) return null;
+                                        return (
+                                            <div className="mt-3">
+                                                <Label className="mb-2 block text-xs">Assign a device</Label>
+                                                <div className="flex gap-2">
+                                                    <select
+                                                        id="assign-device"
+                                                        className="flex h-9 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs"
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="" disabled>Select device...</option>
+                                                        {available.map(d => (
+                                                            <option key={d.id} value={d.id}>{d.name} ({d.zone_id ? 'in another zone' : 'unassigned'})</option>
+                                                        ))}
+                                                    </select>
+                                                    <Button
+                                                        type="button"
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const select = document.getElementById('assign-device') as HTMLSelectElement;
+                                                            if (select?.value) {
+                                                                router.post(`/farms/${farm.id}/zones/${editZone.id}/devices`, {
+                                                                    device_id: Number(select.value),
+                                                                }, {
+                                                                    preserveScroll: true,
+                                                                    onFinish: () => setEditZone(null),
+                                                                });
+                                                            }
+                                                        }}
+                                                    >
+                                                        Assign
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {editZone.devices && editZone.devices.length > 0 && (
+                                        <>
+                                            <div className="mt-4 border-t pt-4">
+                                                <Label className="mb-2 block">Visible entities on zone card</Label>
+                                                <p className="mb-2 text-xs text-muted-foreground">Uncheck entities to hide them from the zone card preview.</p>
+                                                <div className="max-h-48 space-y-1 overflow-y-auto">
+                                                    {editZone.devices.flatMap(device =>
+                                                        device.entities.map(entity => (
+                                                            <label
+                                                                key={entity.id}
+                                                                className="flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-xs hover:bg-muted/50"
+                                                            >
+                                                                <Checkbox
+                                                                    checked={!hiddenEntityIds.includes(entity.id)}
+                                                                    onCheckedChange={() => toggleHideEntity(entity.id)}
+                                                                />
+                                                                <span className="truncate">{entity.name}</span>
+                                                                {entity.unit && <span className="text-muted-foreground">({entity.unit})</span>}
+                                                            </label>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 border-t pt-4">
+                                                <Label className="mb-2 block">Graph entities</Label>
+                                                <p className="mb-2 text-xs text-muted-foreground">Check entities to show as graphs on the zone card.</p>
+                                                <div className="max-h-48 space-y-1 overflow-y-auto">
+                                                    {editZone.devices.flatMap(device =>
+                                                        device.entities.map(entity => (
+                                                            <label
+                                                                key={`graph-${entity.id}`}
+                                                                className="flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-xs hover:bg-muted/50"
+                                                            >
+                                                                <Checkbox
+                                                                    checked={graphEntityIds.includes(entity.id)}
+                                                                    onCheckedChange={() => toggleGraphEntity(entity.id)}
+                                                                />
+                                                                <span className="truncate">{entity.name}</span>
+                                                                {entity.unit && <span className="text-muted-foreground">({entity.unit})</span>}
+                                                            </label>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                        <DialogFooter>
+                        <DialogFooter className="flex justify-between">
+                            <Button type="button" variant="destructive" size="sm" onClick={() => { setDeleteZone(editZone); setEditZone(null); }}>
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Zone
+                            </Button>
                             <Button type="submit">Save Changes</Button>
                         </DialogFooter>
                     </form>
@@ -297,7 +441,7 @@ export default function FarmsShow({ farm }: Props) {
                     <DialogHeader>
                         <DialogTitle>Delete Zone</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete {deleteZone?.name}? This will also remove all devices and crop cycles in this zone. This action cannot be undone.
+                            Are you sure you want to delete {deleteZone?.name}? This will also remove all devices and plants in this zone. This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

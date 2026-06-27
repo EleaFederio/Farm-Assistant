@@ -28,6 +28,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('farms/{farm}/zones', [FarmController::class, 'storeZone'])->name('farms.zones.store');
     Route::put('farms/{farm}/zones/{zone}', [FarmController::class, 'updateZone'])->name('farms.zones.update');
     Route::delete('farms/{farm}/zones/{zone}', [FarmController::class, 'destroyZone'])->name('farms.zones.destroy');
+    Route::post('farms/{farm}/zones/{zone}/devices', [FarmController::class, 'assignDevice'])->name('farms.zones.devices.assign');
+    Route::delete('farms/{farm}/zones/{zone}/devices/{device}', [FarmController::class, 'removeDevice'])->name('farms.zones.devices.remove');
+    Route::put('farms/{farm}/zones/{zone}/entity-prefs', [FarmController::class, 'updateEntityPrefs'])->name('farms.zones.entity-prefs');
+    Route::get('farms/{farm}/zones/{zone}/entity-history', [FarmController::class, 'entityHistory'])->name('farms.zones.entity-history');
 
     Route::get('crops', [CropController::class, 'index'])->name('crops.index');
     Route::post('crops', [CropController::class, 'store'])->name('crops.store');

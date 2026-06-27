@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Device;
 use App\Models\Entity;
+use App\Models\EntityState;
 use Illuminate\Support\Collection;
 
 class EspHomeService
@@ -130,13 +131,16 @@ class EspHomeService
         }
         fclose($fp);
 
-        if ($data === '' || ! str_contains($data, 'event:')) {
-            return;
-        }
-
         $bodyStart = strpos($data, "\r\n\r\n");
         if ($bodyStart !== false) {
             $data = substr($data, $bodyStart + 4);
+        }
+
+        $data = $this->decodeChunked($data);
+        $data = str_replace("\r\n", "\n", $data);
+
+        if ($data === '' || ! str_contains($data, 'event:')) {
+            return;
         }
 
         $events = explode("\n\n", $data);
@@ -171,15 +175,24 @@ class EspHomeService
                 $info['name'] = $payload['title'];
                 $info['friendly_name'] = $payload['title'];
             } elseif ($eventType === 'state' && isset($payload['id'])) {
+                $entityId = $payload['id'];
+                $existingIndex = null;
+                foreach ($info['entities'] as $idx => $e) {
+                    if ($e['entity_id'] === $entityId) {
+                        $existingIndex = $idx;
+                        break;
+                    }
+                }
+
                 $attributes = [];
                 if (isset($payload['option']) && is_array($payload['option'])) {
                     $attributes['option'] = $payload['option'];
                 }
 
-                $info['entities'][] = [
-                    'entity_id' => $payload['id'],
-                    'name' => $payload['name'] ?? $payload['id'],
-                    'entity_type' => $this->inferEntityType($payload['id']),
+                $entityData = [
+                    'entity_id' => $entityId,
+                    'name' => $payload['name'] ?? $entityId,
+                    'entity_type' => $this->inferEntityType($entityId),
                     'unit' => $payload['unit'] ?? null,
                     'device_class' => null,
                     'state_class' => null,
@@ -187,6 +200,12 @@ class EspHomeService
                     'value' => $payload['value'] ?? null,
                     'attributes' => $attributes !== [] ? $attributes : null,
                 ];
+
+                if ($existingIndex !== null) {
+                    $info['entities'][$existingIndex]['value'] = $payload['value'] ?? $info['entities'][$existingIndex]['value'];
+                } else {
+                    $info['entities'][] = $entityData;
+                }
             }
         }
     }
@@ -266,10 +285,18 @@ class EspHomeService
                 if ($entity->wasRecentlyCreated === false && ! empty($entityData['attributes'])) {
                     $entity->update(['attributes' => $entityData['attributes']]);
                 }
+
+                if (isset($entityData['value'])) {
+                    EntityState::create([
+                        'entity_id' => $entity->id,
+                        'value' => (string) $entityData['value'],
+                        'recorded_at' => now(),
+                    ]);
+                }
             }
         }
 
-        return $device->fresh(['entities']);
+        return $device->fresh(['entities.latestState']);
     }
 
     private function inferEntityType(string $entityId): string
@@ -292,5 +319,33 @@ class EspHomeService
             'lock' => 'binary_sensor',
             default => 'sensor',
         };
+    }
+
+    private function decodeChunked(string $data): string
+    {
+        if (! preg_match('/^[0-9a-fA-F]+\r\n/', $data)) {
+            return $data;
+        }
+
+        $decoded = '';
+        while ($data !== '') {
+            $pos = strpos($data, "\r\n");
+            if ($pos === false) {
+                break;
+            }
+
+            $hexSize = trim(substr($data, 0, $pos));
+            $size = (int) hexdec($hexSize);
+
+            if ($size === 0) {
+                break;
+            }
+
+            $data = substr($data, $pos + 2);
+            $decoded .= substr($data, 0, $size);
+            $data = substr($data, $size + 2);
+        }
+
+        return $decoded;
     }
 }

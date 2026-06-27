@@ -58,6 +58,7 @@ class DeviceController extends Controller
 
         return Inertia::render('devices/show', [
             'device' => $device,
+            'zones' => Zone::with('farm')->get(),
         ]);
     }
 
